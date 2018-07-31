@@ -1,0 +1,7 @@
+name: Webform CRM/REST
+type: module
+description: Enables the use of CBS CRM and REST in a convenient way.
+core: 8.x
+package: Webform
+dependencies:
+  - drupal:webform

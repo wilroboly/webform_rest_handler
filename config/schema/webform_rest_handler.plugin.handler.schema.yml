@@ -1,0 +1,71 @@
+webform_rest_handler.handler.rest_service:
+  type: mapping
+  label: 'REST Service'
+  mapping:
+    method:
+      label: 'Method'
+      type: string
+    type:
+      label: 'Type'
+      type: string
+    excluded_data:
+      type: sequence
+      label: 'Excluded data'
+      sequence:
+        type: string
+        label: 'Data name'
+    custom_data:
+      label: 'Custom data'
+      type: string
+    custom_options:
+      label: 'Custom options'
+      type: string
+    debug:
+      type: boolean
+      label: 'Enable debugging'
+    completed_url:
+      label: 'Completed URL'
+      type: uri
+    completed_custom_data:
+      label: 'Completed custom data'
+      type: string
+    updated_url:
+      label: 'Updated URL'
+      type: uri
+    updated_custom_data:
+      label: 'Updated custom data'
+      type: string
+    deleted_url:
+      label: 'Deleted URL'
+      type: uri
+    deleted_custom_data:
+      label: 'Deleted custom data'
+      type: string
+    draft_url:
+      label: 'Draft URL'
+      type: uri
+    draft_custom_data:
+      label: 'Draft custom data'
+      type: string
+    converted_url:
+      label: 'Converted URL'
+      type: uri
+    converted_custom_data:
+      label: 'Converted custom data'
+      type: string
+    message:
+      type: text
+      label: 'Error response message'
+    messages:
+      label: 'Error response messages'
+      type: sequence
+      sequence:
+        type: mapping
+        label: 'Message'
+        mapping:
+          code:
+            type: integer
+            label: 'Response status code'
+          message:
+            type: text
+            label: 'Response message'

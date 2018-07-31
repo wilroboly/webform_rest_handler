@@ -1,0 +1,27 @@
+{
+  "name": "drupal/webform_rest_handler",
+  "type": "drupal-custom-module",
+  "description": "Enables the use of CBS CRM and REST in a convenient way.",
+  "license": "GPL-2.0+",
+  "minimum-stability": "dev",
+  "authors": [
+    {
+      "name": "William Roboly (wilco)",
+      "homepage": "https://www.drupal.org/u/wilco",
+      "role": "Maintainer"
+    }
+  ],
+  "support": {
+    "issues": "https://gitlab.com/tribus.studio/webform_rest_handler/issues",
+    "source": "https://gitlab.com/tribus.studio/webform_rest_handler"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "git@gitlab.com:tribus.studio/webform_rest_handler.git"
+    }
+  ],
+  "require": {
+    "drupal/webform": "^5.0"
+  }
+}
