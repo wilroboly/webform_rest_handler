@@ -1,7 +1,7 @@
 {
   "name": "drupal/webform_rest_handler",
-  "type": "drupal-custom-module",
-  "description": "Enables the use of CBS CRM and REST in a convenient way.",
+  "type": "drupal-module",
+  "description": "Provides a webform handler for submitting webform submissions to a remote endpoint [extending the already included Remote Post handler beyond POST and GET]",
   "license": "GPL-2.0+",
   "minimum-stability": "dev",
   "authors": [
