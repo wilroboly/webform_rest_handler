@@ -30,9 +30,9 @@ use Symfony\Component\Serializer\Encoder\XmlEncoder;
  *
  * @WebformHandler(
  *   id = "rest_service",
- *   label = @Translation("REST service"),
+ *   label = @Translation("Send to remote service"),
  *   category = @Translation("External"),
- *   description = @Translation("Posts webform submissions to a REST endpoint"),
+ *   description = @Translation("Posts webform submissions to a REST/API endpoint"),
  *   cardinality = \Drupal\webform\Plugin\WebformHandlerInterface::CARDINALITY_UNLIMITED,
  *   results = \Drupal\webform\Plugin\WebformHandlerInterface::RESULTS_PROCESSED,
  *   submission = \Drupal\webform\Plugin\WebformHandlerInterface::SUBMISSION_OPTIONAL,
@@ -153,6 +153,7 @@ class RestWebformHandler extends WebformHandlerBase {
       'type' => 'x-www-form-urlencoded',
       'excluded_data' => $excluded_data,
       'custom_data' => '',
+      'custom_data_mode' => 'yaml',
       'custom_options' => '',
       'debug' => FALSE,
       // States.
@@ -274,7 +275,7 @@ class RestWebformHandler extends WebformHandlerBase {
     $form['additional']['type'] = [
       '#type' => 'select',
       '#title' => $this->t('Post type'),
-      '#description' => $this->t('Use x-www-form-urlencoded if unsure, as it is the default format for HTML webforms. You also have the option to post data in <a href="http://www.json.org/" target="_blank">JSON</a> format.'),
+      '#description' => $this->t('Use x-www-form-urlencoded if unsure, as it is the default format for HTML webforms. You also have the option to post data in <a href="http://www.json.org/" target="_blank">JSON</a> format or <a href="https://www.xml.com/" target="_blank">XML</a>.'),
       '#options' => [
         'x-www-form-urlencoded' => $this->t('x-www-form-urlencoded'),
         'json' => $this->t('JSON'),
@@ -307,11 +308,26 @@ class RestWebformHandler extends WebformHandlerBase {
       '#parents' => ['settings', 'custom_data'],
       '#default_value' => $this->configuration['custom_data'],
     ];
+    $form['additional']['custom_data_mode'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Custom data mode'),
+      '#description' => $this->t('Select which mode the Custom Data <strong>codemirror</strong> should use.'),
+      '#parents' => ['settings', 'custom_data_mode'],
+      '#required' => TRUE,
+      '#options' => [
+        'yaml' => 'YAML',
+        'haml' => 'HAML',
+        'javascript' => 'Javascript',
+        'json' => 'JSON',
+        'xml' => 'XML',
+      ],
+      '#default_value' => $this->configuration['custom_data_mode'],
+    ];
     $form['additional']['custom_options'] = [
       '#type' => 'webform_codemirror',
       '#mode' => 'yaml',
       '#title' => $this->t('Custom options'),
-      '#description' => $this->t('Enter custom <a href=":href">request options</a> that will be used by the Guzzle HTTP client. Request options can included custom headers.', [':href' => 'http://docs.guzzlephp.org/en/stable/request-options.html']),
+      '#description' => $this->t('Enter custom <a href=":href">request options</a> that will be used by the Guzzle HTTP client. Request options can included custom headers. Please provide this in YAML format.', [':href' => 'http://docs.guzzlephp.org/en/stable/request-options.html']),
       '#parents' => ['settings', 'custom_options'],
       '#default_value' => $this->configuration['custom_options'],
     ];
@@ -483,6 +499,8 @@ class RestWebformHandler extends WebformHandlerBase {
 
         case 'PUT':
           $request_values = $this->getRequestData($state, $webform_submission);
+          // @TODO: The request options data is not actually being fully implemented
+          // @TODO: Add a method which properly sets up the $request_options['body']
           if ($request_type == 'xml') {
             $encoder = new XmlEncoder('form');
             $xml = $encoder->encode($request_values, 'xml', ['encoding' => 'UTF-8', 'standalone' => 'yes']);
@@ -600,11 +618,16 @@ class RestWebformHandler extends WebformHandlerBase {
     }
 
     // Append custom data.
+    // @TODO: Add serialization functionality here
+    // $this->configuration['custom_data_mode']
+    // This would use the serializer classes
+    // http://symfony.com/doc/current/components/serializer.html
     if (!empty($this->configuration['custom_data'])) {
       $data = Yaml::decode($this->configuration['custom_data']) + $data;
     }
 
     // Append state custom data.
+    // @TODO: Remove this as I do not think we actually use it.
     if (!empty($this->configuration[$state . '_custom_data'])) {
       $data = Yaml::decode($this->configuration[$state . '_custom_data']) + $data;
     }
