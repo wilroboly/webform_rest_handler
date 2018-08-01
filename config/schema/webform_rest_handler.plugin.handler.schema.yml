@@ -17,6 +17,9 @@ webform_rest_handler.handler.rest_service:
     custom_data:
       label: 'Custom data'
       type: string
+    custom_data_mode:
+      label: 'Custom data mode'
+      type: string
     custom_options:
       label: 'Custom options'
       type: string
