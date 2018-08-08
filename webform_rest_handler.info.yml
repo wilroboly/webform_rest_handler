@@ -1,6 +1,6 @@
-name: Webform CRM/REST
+name: Webform REST Handler
 type: module
-description: Enables the use of CBS CRM and REST in a convenient way.
+description: Permits the pushing of webform submissions to RESTful endpoints using XML, JSON or Form encoding.
 core: 8.x
 package: Webform
 dependencies:
