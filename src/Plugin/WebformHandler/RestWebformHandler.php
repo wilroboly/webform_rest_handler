@@ -212,6 +212,9 @@ class RestWebformHandler extends WebformHandlerBase {
         'access' => $this->isConvertEnabled(),
       ],
     ];
+
+    $token_types = ['config_token', 'webform', 'webform_submission'];
+
     foreach ($states as $state => $state_item) {
       $state_url = $state . '_url';
       $state_custom_data = $state . '_custom_data';
@@ -251,6 +254,10 @@ class RestWebformHandler extends WebformHandlerBase {
           '#message_type' => 'info',
         ];
       }
+      $form[$state]['token_tree_link'] = $this->tokenManager->buildTreeElement(
+        $token_types,
+        $this->t('Use [webform_submission:values:ELEMENT_KEY:raw] to get plain text values.')
+      );
     }
 
     // Additional.
@@ -415,7 +422,7 @@ class RestWebformHandler extends WebformHandlerBase {
       '#default_value' => $this->configuration['excluded_data'],
     ];
 
-    $this->tokenManager->elementValidate($form);
+    $this->tokenManager->elementValidate($form, $token_types);
 
     return $form;
   }
@@ -474,6 +481,15 @@ class RestWebformHandler extends WebformHandlerBase {
     // Get request options with tokens replaced.
     $request_options = (!empty($this->configuration['custom_options'])) ? Yaml::decode($this->configuration['custom_options']) : [];
     $request_options = $this->tokenManager->replace($request_options, $webform_submission);
+
+    $token_options = [];
+    $token_data = [];
+
+    // @TODO: The Custom Data field has no bearing on the outcome of the data.
+    //        deprecate or add functionality and tokens into the mix.
+
+    // Get replace token values.
+    $request_url = $this->tokenManager->replace($request_url, $webform_submission, $token_data, $token_options);
 
     try {
       switch ($request_method) {
