@@ -5,6 +5,11 @@ namespace Drupal\webform_rest_handler\Plugin\WebformHandler;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Serialization\Yaml;
+use Drupal\Component\Serialization\Json;
+use Drupal\Component\Serialization\PhpSerialize;
+use Drupal\webform_rest_handler\Component\Serialization\Xml;
+//use Drupal\webform_rest_handler\Library\Data;
+//use Drupal\webform_rest_handler\Library\Utils;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -87,6 +92,119 @@ class RestWebformHandler extends WebformHandlerBase {
     'metatag',
   ];
 
+  protected $types = [
+    'x-www-form-urlencoded' => [
+      'label' => 'x-www-form-urlencoded',
+      'accepted coding languages' => ['yaml','json','php','xml'],
+    ],
+    'json' => [
+      'label' => 'JSON',
+      'accepted coding languages' => ['yaml','json','php'],
+    ],
+    'xml' => [
+      'label' => 'XML',
+      'accepted coding languages' => ['yaml','json','php','xml'],
+    ],
+  ];
+  /**
+   * List of supported coding languages for the code data field
+   *
+   * @var array $coding_languages
+   */
+  protected $coding_languages = [
+    'yaml' => [
+      'label' => 'YAML',
+      'type' => 'webform_codemirror',
+      'mode' => 'yaml',
+      'decode' => 'Yaml::decode',
+      'help' => 'There are loads of fun things you can do with YAML scripting. So, do not hesitate to look up the standard and play around with it.',
+    ],
+//    'html' => [
+//      'label' => 'HTML',
+//      'type' => 'webform_codemirror',
+//      'mode' => 'html',
+//      'decode' => FALSE,
+//    ],
+//    'twig' => [
+//      'label' => 'Twig',
+//      'type' => 'webform_codemirror',
+//      'mode' => 'twig',
+//      'decode' => FALSE,
+//    ],
+    'xml' => [
+      'label' => 'XML',
+      'type' => 'textarea',
+      'mode' => 'xml',
+      'attached' => [
+        'library' => [
+          'webform_rest_handler/codemirror-xml',
+        ],
+      ],
+      'attributes' => [
+        'class' => [
+          'js-webform-rest-codemirror',
+          'webform-codemirror',
+          'html',
+        ],
+        'data-webform-codemirror-mode' => [
+          'text/html'
+        ],
+      ],
+      'decode' => 'Drupal\webform_rest_handler\Component\Serialization\Xml::decode',
+      'help' => 'When setting up some XML, you should consider adding in various details of the root node and the definition of the document. Use YAML variables in the Custom Guzzle Options like : xml_root_node_name, xml_format_output, xml_version, xml_encoding or xml_standalone. These will be added forcibly if not acquired from the xml document properties.',
+    ],
+//    'js' => [
+//      'label' => 'Javascript',
+//      'type' => 'textarea',
+//      'mode' => 'javascript',
+//      'decode' => FALSE,
+//    ],
+    'json' => [
+      'label' => 'JSON',
+      'type' => 'textarea',
+      'mode' => 'json',
+      'attached' => [
+        'library' => [
+          'webform_rest_handler/codemirror-xml',
+        ],
+      ],
+      'attributes' => [
+        'class' => [
+          'js-webform-rest-codemirror',
+          'webform-codemirror',
+          'json',
+        ],
+        'data-webform-codemirror-mode' => [
+          'application/json'
+        ],
+      ],
+      'decode' => 'Json:decode',
+      'help' => '',
+    ],
+    'php' => [
+      'label' => 'PHP Serialized',
+      'type' => 'textarea',
+      'mode' => 'php',
+      'attached' => [
+        'library' => [
+          'webform_rest_handler/codemirror-xml',
+        ],
+      ],
+      'attributes' => [
+        'class' => [
+          'js-webform-rest-codemirror',
+          'webform-codemirror',
+          'php',
+        ],
+        'data-webform-codemirror-mode' => [
+          'text/x-php'
+        ],
+      ],
+      'decode' => 'PhpSerialize::decode',
+      'help' => '',
+    ],
+  ];
+
   /**
    * {@inheritdoc}
    */
@@ -136,6 +254,9 @@ class RestWebformHandler extends WebformHandlerBase {
     if (!$this->isConvertEnabled()) {
       $settings['converted_url'] = '';
     }
+    if (!$this->isUnsavedEnabled()) {
+      $settings['unsaved_url'] = '';
+    }
 
     return [
         '#settings' => $settings,
@@ -148,13 +269,13 @@ class RestWebformHandler extends WebformHandlerBase {
   public function defaultConfiguration() {
     $field_names = array_keys(\Drupal::service('entity_field.manager')->getBaseFieldDefinitions('webform_submission'));
     $excluded_data = array_combine($field_names, $field_names);
-    return [
+    $defaults = [
       'method' => 'POST',
       'type' => 'x-www-form-urlencoded',
       'excluded_data' => $excluded_data,
-      'custom_data' => '',
-      'custom_data_mode' => 'yaml',
-      'custom_options' => '',
+      'body_data' => '',
+      'body_data_mode' => 'yaml',
+      'customize_options' => '',
       'debug' => FALSE,
       // States.
       'completed_url' => '',
@@ -167,10 +288,16 @@ class RestWebformHandler extends WebformHandlerBase {
       'draft_custom_data' => '',
       'converted_url' => '',
       'converted_custom_data' => '',
+      'unsaved_url' => '',
+      'unsaved_custom_data' => '',
       // Custom response messages.
       'message' => '',
       'messages' => [],
     ];
+    foreach ($this->coding_languages as $code => $values) {
+      $defaults['body_data_' . $code] = '';
+    }
+    return $defaults;
   }
 
   /**
@@ -211,6 +338,12 @@ class RestWebformHandler extends WebformHandlerBase {
         'description' => $this->t('Post data when anonymous submission is <b>converted</b> to authenticated.'),
         'access' => $this->isConvertEnabled(),
       ],
+      WebformSubmissionInterface::STATE_UNSAVED => [
+        'state' => $this->t('unsaved'),
+        'label' => $this->t('Unsaved'),
+        'description' => $this->t('Send data to REST when anonymous submission is <b>unsaved</b> for validation. Result will be <b>saved</b> once done.'),
+        'access' => $this->isUnsavedEnabled(),
+      ],
     ];
 
     $token_types = ['config_token', 'webform', 'webform_submission'];
@@ -225,7 +358,7 @@ class RestWebformHandler extends WebformHandlerBase {
       ];
       $form[$state] = [
         '#type' => 'details',
-        '#open' => ($state === WebformSubmissionInterface::STATE_COMPLETED),
+        '#open' => ($state === (WebformSubmissionInterface::STATE_COMPLETED || WebformSubmissionInterface::STATE_UNSAVED)),
         '#title' => $state_item['label'],
         '#description' => $state_item['description'],
         '#access' => $state_item['access'],
@@ -234,7 +367,7 @@ class RestWebformHandler extends WebformHandlerBase {
         '#type' => 'url',
         '#title' => $this->t('@title URL', $t_args),
         '#description' => $this->t('The full URI for a REST endpoint to post the webform submission once it is @state. (e.g. @url)', $t_args),
-        '#required' => ($state === WebformSubmissionInterface::STATE_COMPLETED),
+//        '#required' => ($state === WebformSubmissionInterface::STATE_COMPLETED),
         '#parents' => ['settings', $state_url],
         '#default_value' => $this->configuration[$state_url],
       ];
@@ -279,15 +412,16 @@ class RestWebformHandler extends WebformHandlerBase {
       '#parents' => ['settings', 'method'],
       '#default_value' => $this->configuration['method'],
     ];
+
+    foreach ($this->types as $type => $type_info) {
+      $type_options[$type] = $this->t($type_info['label']);
+    }
+
     $form['additional']['type'] = [
       '#type' => 'select',
-      '#title' => $this->t('Post type'),
-      '#description' => $this->t('Use x-www-form-urlencoded if unsure, as it is the default format for HTML webforms. You also have the option to post data in <a href="http://www.json.org/" target="_blank">JSON</a> format or <a href="https://www.xml.com/" target="_blank">XML</a>.'),
-      '#options' => [
-        'x-www-form-urlencoded' => $this->t('x-www-form-urlencoded'),
-        'json' => $this->t('JSON'),
-        'xml' => $this->t('XML'),
-      ],
+      '#title' => $this->t('Body formatting'),
+      '#description' => $this->t('This setting will convert the output of the Body data into a format usable by the remote endpoint. Depending on the system you will be posting to, you might need to use x-www-form-urlencoded, this is the default format for HTML webforms. Other choices can be <a href="http://www.json.org/" target="_blank">JSON</a> format or <a href="https://www.xml.com/" target="_blank">XML</a> format which have far more restrictive validation. Use with care!'),
+      '#options' => $type_options,
       '#parents' => ['settings', 'type'],
       '#states' => [
         'visible' => [
@@ -307,36 +441,50 @@ class RestWebformHandler extends WebformHandlerBase {
       ],
       '#default_value' => $this->configuration['type'],
     ];
-    $form['additional']['custom_data'] = [
-      '#type' => 'webform_codemirror',
-      '#mode' => 'yaml',
-      '#title' => $this->t('Custom data'),
-      '#description' => $this->t('Enter custom data that will be included in all remote post requests.'),
-      '#parents' => ['settings', 'custom_data'],
-      '#default_value' => $this->configuration['custom_data'],
-    ];
-    $form['additional']['custom_data_mode'] = [
+
+    foreach ($this->coding_languages as $coding_language => $properties) {
+      $coding_languages_options[$coding_language] = $properties['label'];
+    }
+
+    $form['additional']['body_data_mode'] = [
       '#type' => 'select',
-      '#title' => $this->t('Custom data mode'),
-      '#description' => $this->t('Select which mode the Custom Data <strong>codemirror</strong> should use.'),
-      '#parents' => ['settings', 'custom_data_mode'],
+      '#title' => $this->t('Body data mode'),
+      '#description' => $this->t('Select which mode the Body data <strong>codemirror</strong> should use and how it will be converted to match the body formatting.'),
+      '#parents' => ['settings', 'body_data_mode'],
       '#required' => TRUE,
-      '#options' => [
-        'yaml' => 'YAML',
-        'haml' => 'HAML',
-        'javascript' => 'Javascript',
-        'json' => 'JSON',
-        'xml' => 'XML',
-      ],
-      '#default_value' => $this->configuration['custom_data_mode'],
+      '#options' => $coding_languages_options,
+      '#default_value' => $this->configuration['body_data_mode'],
     ];
-    $form['additional']['custom_options'] = [
+
+    foreach ($this->coding_languages as $code => $properties) {
+      $form['additional']['body_data_' . $code] = [
+        '#type' => $properties['type'],
+        '#mode' => $properties['mode'],
+        '#title' => $this->t('Data Code'),
+        '#description' => $this->t('Enter @title code here', array('@title' => $properties['label'])) . $this->t('<p>' . $properties['help'] . '</p>'),
+        '#parents' => ['settings','body_data_' . $code],
+        '#default_value' => $this->configuration['body_data_' . $code],
+        '#states' => [
+          'visible' => [
+            ':input[name="settings[body_data_mode]"]' => ['value' => $code]
+          ]
+        ],
+      ];
+      if (isset($properties['attached'])) {
+        $form['additional']['body_data_' . $code]['#attached'] = $properties['attached'];
+      }
+      if (isset($properties['attributes'])) {
+        $form['additional']['body_data_' . $code]['#attributes'] = $properties['attributes'];
+      }
+    }
+
+    $form['additional']['customize_options'] = [
       '#type' => 'webform_codemirror',
       '#mode' => 'yaml',
-      '#title' => $this->t('Custom options'),
+      '#title' => $this->t('Customize Guzzle options'),
       '#description' => $this->t('Enter custom <a href=":href">request options</a> that will be used by the Guzzle HTTP client. Request options can included custom headers. Please provide this in YAML format.', [':href' => 'http://docs.guzzlephp.org/en/stable/request-options.html']),
-      '#parents' => ['settings', 'custom_options'],
-      '#default_value' => $this->configuration['custom_options'],
+      '#parents' => ['settings', 'customize_options'],
+      '#default_value' => $this->configuration['customize_options'],
     ];
     $form['additional']['message'] = [
       '#type' => 'webform_html_editor',
@@ -442,6 +590,28 @@ class RestWebformHandler extends WebformHandlerBase {
   }
 
   /**
+   * The point of this validationForm is to check whether we have any REMOTE issues.
+   * Should we have any complications, we need to be able to set the form_state
+   */
+  public function validateForm(array &$form, FormStateInterface $form_state, WebformSubmissionInterface $webform_submission) {
+    $state = $webform_submission->getWebform()->getSetting('results_disabled') ? WebformSubmissionInterface::STATE_COMPLETED : $webform_submission->getState();
+
+    if ($state == WebformSubmissionInterface::STATE_UNSAVED && !empty($this->configuration[$state . '_url'])) {
+      $errors = $this->remotePost($state, $webform_submission);
+      // Ensure error is of Guzzle type
+      if (is_a($errors, '\GuzzleHttp\Psr7\Response')) {
+        // Let's decode the error body from XML.
+        // @TODO: This is dirty and likely will have to be setup in such a way
+        //        that we check the actual format of the error body. Otherwise
+        //        we could have false positives or an outright code exception.
+        $xml_array = Xml::decode((string) $errors->getBody());
+        $temporary = $form_state->getTemporary() + ['response' => $xml_array];
+        $form_state->setTemporary($temporary);
+      }
+    }
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function postSave(WebformSubmissionInterface $webform_submission, $update = TRUE) {
@@ -475,61 +645,52 @@ class RestWebformHandler extends WebformHandlerBase {
 
     $request_url = $this->configuration[$state . '_url'];
     $request_method = (!empty($this->configuration['method'])) ? $this->configuration['method'] : 'POST';
+
     $request_type = ($request_method !== 'GET') ? $this->configuration['type'] : NULL;
     $request_type = ($this->configuration['type'] == 'x-www-form-urlencoded') ? 'form_params' : $request_type;
 
     // Get request options with tokens replaced.
-    $request_options = (!empty($this->configuration['custom_options'])) ? Yaml::decode($this->configuration['custom_options']) : [];
+    $request_options = (!empty($this->configuration['customize_options'])) ? Yaml::decode($this->configuration['customize_options']) : [];
     $request_options = $this->tokenManager->replace($request_options, $webform_submission);
 
     $token_options = [];
     $token_data = [];
 
-    // @TODO: The Custom Data field has no bearing on the outcome of the data.
-    //        deprecate or add functionality and tokens into the mix.
-
     // Get replace token values.
     $request_url = $this->tokenManager->replace($request_url, $webform_submission, $token_data, $token_options);
-
+    $data = $this->getRequestData($state, $webform_submission);
     try {
       switch ($request_method) {
         case 'GET':
           // Append data as query string to the request URL.
-          $query = $this->getRequestData($state, $webform_submission);
-          $request_url = Url::fromUri($request_url, ['query' => $query])->toString();
+          $request_url = Url::fromUri($request_url, ['query' => $data])->toString();
           $response = $this->httpClient->get($request_url, $request_options);
           break;
 
         case 'POST':
-          $request_values = $this->getRequestData($state, $webform_submission);
           if ($request_type == 'xml') {
-            $encoder = new XmlEncoder('form');
-            $xml = $encoder->encode($request_values, 'xml', ['encoding' => 'UTF-8', 'standalone' => 'yes']);
+            $xml = Xml::encode($data, $this->xmlOptionsMapping($request_options));
             $request_options['body'] = $xml;
 
           } else {
-            $request_options[$request_type] = $request_values;
+            $request_options[$request_type] = $data;
           }
           $response = $this->httpClient->post($request_url, $request_options);
           break;
 
         case 'PUT':
-          $request_values = $this->getRequestData($state, $webform_submission);
-          // @TODO: The request options data is not actually being fully implemented
-          // @TODO: Add a method which properly sets up the $request_options['body']
           if ($request_type == 'xml') {
-            $encoder = new XmlEncoder('form');
-            $xml = $encoder->encode($request_values, 'xml', ['encoding' => 'UTF-8', 'standalone' => 'yes']);
+            $xml = Xml::encode($data, $this->xmlOptionsMapping($request_options));
             $request_options['body'] = $xml;
 
           } else {
-            $request_options[$request_type] = $request_values;
+            $request_options[$request_type] = $data;
           }
           $response = $this->httpClient->put($request_url, $request_options);
           break;
 
         case 'DELETE':
-          $request_options[$request_type] = $this->getRequestData($state, $webform_submission);
+          $request_options[$request_type] = $data;
           $response = $this->httpClient->delete($request_url, $request_options);
           break;
 
@@ -543,7 +704,7 @@ class RestWebformHandler extends WebformHandlerBase {
       $message = nl2br(htmlentities($message));
 
       $this->handleError($state, $message, $request_url, $request_method, $request_type, $request_options, $response);
-      return;
+      return $response;
     }
 
     // Display submission exception if response code is not 2xx.
@@ -551,7 +712,7 @@ class RestWebformHandler extends WebformHandlerBase {
     if ($status_code < 200 || $status_code >= 300) {
       $message = $this->t('Remote post request return @status_code status code.', ['@status_code' => $status_code]);
       $this->handleError($state, $message, $request_url, $request_method, $request_type, $request_options, $response);
-      return;
+      return $status_code;
     }
 
     // If debugging is enabled, display the request and response.
@@ -633,17 +794,16 @@ class RestWebformHandler extends WebformHandlerBase {
       $data[$element_key . '__data'] = base64_encode(file_get_contents($file->getFileUri()));
     }
 
-    // Append custom data.
-    // @TODO: Add serialization functionality here
-    // $this->configuration['custom_data_mode']
-    // This would use the serializer classes
-    // http://symfony.com/doc/current/components/serializer.html
-    if (!empty($this->configuration['custom_data'])) {
-      $data = Yaml::decode($this->configuration['custom_data']) + $data;
+    $content = $this->configuration['body_data_' . $this->configuration['body_data_mode']];
+    if (!empty($content)) {
+
+      $mode = $this->configuration['body_data_mode'];
+
+      $decoded_content = $this->decodedData($mode, $content);
+      $data = $decoded_content + $data;
     }
 
-    // Append state custom data.
-    // @TODO: Remove this as I do not think we actually use it.
+    // Append state Custom State data.
     if (!empty($this->configuration[$state . '_custom_data'])) {
       $data = Yaml::decode($this->configuration[$state . '_custom_data']) + $data;
     }
@@ -665,7 +825,7 @@ class RestWebformHandler extends WebformHandlerBase {
    */
   protected function getResponseData(ResponseInterface $response) {
     $body = (string) $response->getBody();
-    $data = json_decode($body, TRUE);
+    $data = Json::decode($body, TRUE);
     return (json_last_error() === JSON_ERROR_NONE) ? $data : $body;
   }
 
@@ -723,10 +883,74 @@ class RestWebformHandler extends WebformHandlerBase {
     return $this->isDraftEnabled() && ($this->getWebform()->getSetting('form_convert_anonymous') === TRUE);
   }
 
+  /**
+   * Determine if validation of unsaved submissions is enabled.
+   *
+   * @return bool
+   *   TRUE if saving of results is enabled.
+   */
+  protected function isUnsavedEnabled() {
+    return ($this->getWebform()->getSetting('results_disabled') === FALSE);
+  }
+
+  /**
+   * @param $mode string value representing the language
+   * @param $content string value of the code to be decoded or not
+   *
+   * @return mixed
+   *    should return the RAW or decoded version of the content
+   */
+  protected function decodedData($mode, $content) {
+    if ($this->coding_languages[$mode]['decode']) {
+      list($class, $method) = explode('::', $this->coding_languages[$mode]['decode']);
+      $content = call_user_func("$class::$method", $content);
+    }
+    return $content;
+  }
+
+  /**
+   * @param $request_options array of options which may contain XML document
+   *                         settings which should be extracted and unset.
+   *
+   * @return array xml document options
+   */
+  protected function xmlOptionsMapping(&$request_options) {
+    $options = [];
+    if (isset($request_options['xml_root_node_name'])) {
+      $options['xml_root_node_name'] = $request_options['xml_root_node_name'];
+      unset($request_options['xml_root_node_name']);
+    }
+    if (isset($request_options['xml_format_output'])) {
+      $options['xml_format_output'] = $request_options['xml_format_output'];
+      unset($request_options['xml_format_output']);
+    }
+    if (isset($request_options['xml_version'])) {
+      $options['xml_version'] = $request_options['xml_version'];
+      unset($request_options['xml_version']);
+    }
+    if (isset($request_options['xml_encoding'])) {
+      $options['xml_encoding'] = $request_options['xml_encoding'];
+      unset($request_options['xml_encoding']);
+    }
+    if (isset($request_options['xml_standalone'])) {
+      $options['xml_standalone'] = $request_options['xml_standalone'];
+      unset($request_options['xml_standalone']);
+    }
+    return $options;
+  }
+
+
+  protected function formattingToModeMapping($type, $mode) {
+
+
+
+    return $mapping;
+  }
+
   /****************************************************************************/
   // Debug and exception handlers.
   /****************************************************************************/
-
+  // @TODO: Fix the debug output screen to work with more than simply YAML::encode
   /**
    * Display debugging information.
    *

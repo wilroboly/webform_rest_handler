@@ -1,0 +1,9 @@
+codemirror-xml:
+  version: VERSION
+  js:
+    js/codemirror.xml.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupal
+    - core/drupalSettings
